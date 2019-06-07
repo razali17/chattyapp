@@ -7,59 +7,92 @@ class App extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      currentUser : {name: "Mustafa"},
-      messages: [{username: "Bob", content: "Has anyone seen my marbles?", id: 0},
-                 {username: "Holly", content: "Yeah I ate them", id: 1},
-                 {username: "Bob", content: "So Lame", id: 2}],
-      text: ""
+      onlineUsers: "",
+      currentUser : {name: "user1"},
+      messages: [],
     };
+  };
+
+  componentDidMount() {
+    const socket = new WebSocket("ws://localhost:3001");
+    socket.onmessage = this.handleSocketMessage;
+    this.socket = socket;
   }
 
-  handleChange1 = (e) => {
-    this.setState({value: e.target.value})
-  }
+  //helper functions
 
-
+  //handles the user input for a new message from Chatbar, sending the content to the websocket in JSON format
   handleSendMessage = (e) =>  {
-    e.preventDefault();
-    let messageContent = e.target.value
-    let newMessage = {username: this.state.currentUser.name, content: "", id: 5}
-    const oldmessages = this.state.messages
+    const messageContent = e.target.value;
+    const newMessage = {type: "newMessage", username: this.state.currentUser.name, content: ""};
     if (e.key === "Enter") {
-      messageContent = e.target.value
+      const messageContent = e.target.value;
       e.target.value = ""
-      newMessage.content = messageContent
-      this.setState(prevState => ({
-        // messages: prevState.messages.concat(messageContent),
-        text: messageContent,
-        messages: [... oldmessages, newMessage]
-      }))
+      newMessage.content = messageContent;
+      this.socket.send(JSON.stringify(newMessage));
+    };
+  };
+
+  //handles the user input for a new user from Chatbar, sending the content to the websocket in JSON format
+  handleUserChange = event => {
+    event.preventDefault();
+    if (event.key === "Enter") {
+      const user = {type: "notification", name: event.target.value};
+      this.socket.send(JSON.stringify(user));
     }
   }
 
+  //handles the websocket responses
+  handleSocketMessage = event => {
+    const json =JSON.parse(event.data);
 
-  componentDidMount() {
-    console.log("componentDidMount <App />");
-    setTimeout(() => {
-      console.log("Simulating incoming message");
-      // Add a new message to the list of messages in the data store
-      const newMessage = {id: 3, username: "Michelle", content: "Hello there!"};
-      const messages = this.state.messages.concat(newMessage)
-      // Update the state of the app component.
-      // Calling setState will trigger a call to render() in App and all child components.
-      this.setState({messages: messages})
-    }, 3000);
-  }
+    switch (json.type) {
+      //updates the state of online users after a user connects to the websocket
+      case "initialMessage":
+        const newOnlineUsers = "Online users: "+json.count;
+        this.setState({
+          onlineUsers: newOnlineUsers
+        });
+        break;
+
+      case "messageAdded":
+        //updates the state of messages with the new message
+        const oldmessages = this.state.messages;
+        const newMessage = {id: json.id, username: json.username, content: json.content};
+        this.setState(prevState => ({
+          messages: [... oldmessages, newMessage]
+        }));
+        break;
+      case "postNotification":
+      //updates the state of messages with the new notification
+        const oldUser = this.state.currentUser.name;
+        const oldmessage = this.state.messages;
+        const newMessages = {id: json.id, notification: oldUser+" has changed their name to: "+json.name};
+        this.setState(prevState => ({
+          messages: [... oldmessage, newMessages], currentUser : {name : json.name}
+        }));
+        break;
+      case "disconnectMessage":
+      //updates the state of online users after a user disconnects from the websocket
+        const nowOnlineUsers = "Online users: "+json.numUsers;
+        this.setState({
+          onlineUsers: nowOnlineUsers
+        });
+        break;
+
+      default:
+    };
+  };
 
   render() {
     return (
       <div>
-        <Navbar />
+        <Navbar onlineUsers={this.state.onlineUsers} />
         <MessageList messages={this.state.messages}/>
-        <Chatbar text={this.state.text} onChange={this.handleChange} sendMessage={this.handleSendMessage} currentUser={this.state.currentUser}/>
+        <Chatbar onChange={this.handleChange} newUser={this.handleUserChange} sendMessage={this.handleSendMessage} currentUser={this.state.currentUser}/>
       </div>
     );
   };
-}
+};
 
 export default App;
