@@ -20,3 +20,6 @@ ChattyApp
 ## Getting Started
 
 - Install all dependencies (using `npm install` comand).
+- Run the following two servers by running `npm start` in the following two directories:
+  1. root directory
+  2. chatty-server directory
